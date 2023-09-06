@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.4.1/dist/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous"></link>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farazy Tested Report</title>
+</head>
+<body>
+    <br />
+    <div class="text-center container alert">
+        <div>
+            <h3>Get Your Farazy Tested Report</h3>
+            <input type="text" id="invoiceNo" class="form-control form-control-lg mb-3 text-center display-3" placeholder="Invoice No" value="DIA230904101" />
+            <button id="getReportBtn" class="btn btn-success">Get Report</button>
+        </div>
+        <br />
+
+        <!-- Patient's Info -->
+        <div class="row" id="patientInfo" style="display: none;">
+            <div class="col-md-12 col-lg-12">
+                <div class="card">
+                    <div class="card-header">
+                        Patient's Info
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-12 col-lg-12">
+                                <table class="table table-bordered">
+                                    <tbody>
+                                        <tr>
+                                            <td>Name</td>
+                                            <td id="patientName"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Phone</td>
+                                            <td id="telephoneNo"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Age</td>
+                                            <td id="age"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <br />
+
+        <!-- Done tests -->
+        <div class="row" id="doneTests" style="display: none;">
+            <div class="col-md-12 col-lg-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Done Tests</h3>
+                    </div>
+                    <div id="testResults" class="card-body">
+                        No Test Found
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('getReportBtn').addEventListener('click', loadTestName);
+
+        async function loadTestName() {
+            const invoiceNo = document.getElementById('invoiceNo').value;
+            try {
+                // Fetch the first endpoint
+                const res1 = await fetch(`http://59.152.61.146:6200/api/Investigation/GetInvestigations?searchTxt=${invoiceNo}`);
+                if (!res1.ok) {
+                    throw new Error(`Failed to fetch data from the API`);
+                }
+                const data1 = await res1.json();
+
+                // Fetch the second endpoint
+                const res2 = await fetch(`http://59.152.61.146:6200/api/Investigation/GetInvoiceInfo?InvNo=${invoiceNo}`);
+                if (!res2.ok) {
+                    throw new Error(`Failed to fetch data from the API`);
+                }
+                const data2 = await res2.json();
+
+                if (data2.length > 0) {
+                    const patientName = data2[0].patientName;
+                    const age = data2[0].age;
+                    const telephoneNo = data1?.[0]?.telephoneNo;
+
+                    // Update the DOM with patient information
+                    document.getElementById('patientName').textContent = patientName;
+                    document.getElementById('age').textContent = age;
+                    document.getElementById('telephoneNo').textContent = telephoneNo;
+
+                    // Display patient information
+                    document.getElementById('patientInfo').style.display = 'block';
+                }
+
+                // Display done tests
+                document.getElementById('doneTests').style.display = 'block';
+
+                // Populate test results
+                const testResults = data2.map(async (item) => {
+                    const result = await loadResults(item.invNo, item.pCode);
+                    return { item, result };
+                });
+
+                // Render test results
+                renderTestResults(testResults);
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        async function loadResults(invoiceNo, pCode) {
+            const res = await fetch(`http://59.152.61.146:6200/api/Investigation/GetReportDataByTestCode?invNo=${invoiceNo}&pCode=${pCode}`);
+            if (!res.ok) {
+                throw new Error(`Failed to fetch test results from the API`);
+            }
+            const data = await res.json();
+            return data;
+        }
+
+        function renderTestResults(testResults) {
+            const testResultsContainer = document.getElementById('testResults');
+            testResultsContainer.innerHTML = ''; // Clear previous results
+
+            testResults.forEach((item, index) => {
+                const result = item.result;
+
+                const resultHTML = `
+                    <div key="${index}" class="card-body">
+                        <div class="row">
+                            <div class="col-md-12 col-lg-12">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Test Name</th>
+                                            <th>${item.item.shortDesc}</th>
+                                        </tr>
+                                    </thead>
+                                    ${renderReportDatas(result)}
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                testResultsContainer.insertAdjacentHTML('beforeend', resultHTML);
+            });
+        }
+
+        function renderReportDatas(reportDatas) {
+            let reportHTML = '';
+            reportDatas.forEach((item) => {
+                reportHTML += `
+                    <tbody>
+                        <tr>
+                            <td>${item?.aliasName}</td>
+                            <td>${item?.result} ${item?.unit}</td>
+                            <td>${item?.normalValue}</td>
+                        </tr>
+                    </tbody>
+                `;
+            });
+            return reportHTML;
+        }
+    </script>
+</body>
+</html>
